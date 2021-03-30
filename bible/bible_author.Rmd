@@ -1,0 +1,272 @@
+---
+title: "Bible author"
+author: "黃天原"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+editor_options: 
+  chunk_output_type: console
+---
+source code: <https://github.com/deadfate-sky/MIS581_social_media_analysis>
+
+# 1：套件安裝及載入
+
+### 系統參數設定
+```{r}
+here::i_am("bible_author.Rmd")
+Sys.setlocale(category = "LC_ALL", locale = "zh_TW.UTF-8") # 避免中文亂碼
+``` 
+
+安裝需要的packages
+```{r}
+packages = c("dplyr", "tidytext", "stringr", "wordcloud2", "ggplot2",'readr','data.table','reshape2','wordcloud',
+             'tidyr','scales', "jiebaR", "colorspace")
+existing = as.character(installed.packages()[,1])
+for(pkg in packages[!(packages %in% existing)]) install.packages(pkg)
+```
+讀入套件
+```{r include=FALSE}
+sapply(packages, require, character.only = TRUE)
+```
+
+
+
+讀進聖經
+```{r}
+bible = as.data.frame(fread('data/bible.txt', encoding="UTF-8",fill=TRUE))
+```
+
+將章節編號
+```{r}
+bible = bible %>%
+  mutate(
+    bookcode = cumsum(
+      str_detect(bible$book, regex("^=[0-1][0-9]{2}"))
+      )
+    ) 
+# %>%  select (-book, -chapter)
+str(bible)
+```
+
+# 2. 手動找列上各卷作者
+
+本文的用的作者來源，主要參考這兩篇文章：  
+<https://www.konline.org/biblestudy/JBS_A/DBC_08.doc.html>，<https://www.gotquestions.org/T-Chinese/T-Chinese-authors-Bible.html>，另外搭配[維基百科的說明](https://zh.wikipedia.org/wiki/%E8%81%96%E7%B6%93%E4%BD%9C%E8%80%85)
+```{r}
+
+bible[!duplicated(bible$ch_book), c("ch_book", "bookcode")]
+# bible[!duplicated(bible$ch_book), c("ch_book", "bookcode")] %>% 
+#   datapasta::tribble_paste()
+
+bible_author = tibble::tribble(
+      ~ch_book, ~bookcode, ~author,
+         "創世紀",        1L,"摩西",
+            NA,        1L, "摩西",
+           "-",        2L, "摩西",
+        "出埃及記",        2L, "摩西",
+         "利未記",        3L, "摩西",
+         "民數記",        4L,"摩西",
+         "申命記",        5L,"摩西",
+        "約書亞記",        6L, "約書亞",
+         "士師記",        7L, "撒母耳",
+         "路得記",        8L,"撒母耳",
+       "撒母耳記上",        9L,"撒母耳",
+       "撒母耳記下",       10L,"拿單與迦得",
+        "列王記上",       11L,"耶利米",
+        "列王記下",       12L,"耶利米",
+        "歷代志上",       13L,"以斯拉",
+        "歷代志下",       14L,"以斯拉",
+        "以斯拉記",       15L,"以斯拉",
+        "尼希米記",       16L,"尼希米",
+        "以斯帖記",       17L,"末底改",
+         "約伯記",       18L,"以利戶",
+          "詩篇",       19L, "大衛為主",
+          "箴言",       20L,"所羅門",
+         "傳道書",       21L,"所羅門",
+          "雅歌",       22L,"所羅門",
+        "以賽亞書",       23L,"以賽亞",
+        "耶利米書",       24L,"耶利米",
+       "耶利米哀歌",       25L,"耶利米",
+        "以西結書",       26L,"以西結",
+        "但以理書",       27L,"但以理",
+        "何西阿書",       28L,"何西阿",
+         "約珥書",       29L,"約珥",
+        "阿摩司書",       30L,"阿摩司",
+       "俄巴底亞書",       31L,"俄巴底亞",
+         "約拿書",       32L,"約拿",
+         "彌迦書",       33L,"彌迦",
+         "那鴻書",       34L,"那鴻",
+        "哈巴谷書",       35L,"哈巴谷",
+        "西番雅書",       36L,"西番雅",
+         "哈該書",       37L,"哈該",
+       "撒迦利亞書",       38L,"撒迦利亞",
+        "瑪拉基書",       39L,"瑪拉基",
+        "馬太福音",       40L,"馬太",
+        "馬可福音",       41L,"馬可",
+        "路加福音",       42L,"路加",
+        "約翰福音",       43L,"約翰",
+        "使徒行傳",       44L,"路加",
+         "羅馬書",       45L,"保羅",
+       "哥林多前書",       46L,"保羅",
+       "哥林多後書",       47L,"保羅",
+        "加拉太書",       48L,"保羅",
+        "以弗所書",       49L,"保羅",
+        "腓立比書",       50L,"保羅",
+        "歌羅西書",       51L,"保羅",
+     "帖撒羅尼迦前書",       52L,"保羅",
+     "帖撒羅尼迦後書",       53L,"保羅",
+       "提摩太前書",       54L,"保羅",
+       "提摩太後書",       55L,"保羅",
+         "提多書",       56L,"保羅",
+        "腓利門書",       57L,"保羅",
+        "希伯來書",       58L,"未知",
+         "雅各書",       59L,"雅各",
+        "彼得前書",       60L,"彼得",
+        "彼得後書",       61L,"彼得",
+        "約翰一書",       62L,"約翰",
+        "約翰二書",       63L,"約翰",
+        "約翰三書",       64L,"約翰",
+         "猶大書",       65L,"猶大",
+         "啟示錄",       66L,"約翰"
+     )
+head(bible_author)
+```
+
+## 合併作者與新增新舊約
+```{r}
+bible = bible %>% 
+  left_join(bible_author) %>% 
+  mutate(old_new = case_when(bookcode < 40 ~ "old",
+                             TRUE ~ "new"))
+```
+
+# 3. 斷詞設定 & 情緒辭典
+
+## 斷詞設定
+```{r}
+jieba_tokenizer <- worker(user="dict/bible_lexicon.tradictional_2.txt", stop_word = "dict/bible_stop_words.txt")
+
+customized_tokenizer <- function(t) {
+  lapply(t, function(x) {
+    tokens <- segment(x, jieba_tokenizer)
+    return(tokens)
+  })
+}
+```
+
+## 進行斷詞
+```{r}
+
+bible_token <- bible %>% unnest_tokens(word, text, token=customized_tokenizer) %>%
+  filter(nchar(.$word)>1 | word %in% c("神", "主"))
+
+head(bible_token)
+```
+
+
+## 準備情緒辭典
+```{r}
+P <- read_file("dict/liwc/positive.txt") # 正向字典txt檔
+N <- read_file("dict/liwc/negative.txt") # 負向字典txt檔
+
+# remove `\"\n`
+P = gsub(r"(\"\n)", "", P)
+N = gsub(r"(\"\n)", "", N)
+
+P = strsplit(P, ",")[[1]]
+N = strsplit(N, ",")[[1]]
+
+P = data.frame(word = P, sentiment = "positive") #664
+N = data.frame(word = N, sentiment = "negative") #1047
+
+
+# 把兩個字典拼在一起
+LIWC = rbind(P, N)
+
+# 檢視字典
+head(LIWC)
+```
+
+# 4. 開始分析不同作者的文字情緒
+
+## 比較不同作者的正負面情緒數量
+```{r}
+bible_token %>% 
+  # clean data
+  inner_join(LIWC) %>% 
+  group_by(author, sentiment) %>%
+  summarise(n = n(),
+            bookcode = min(bookcode)) %>% 
+  ungroup() %>% 
+  
+  # plot the amount of sentiment
+  ggplot(aes(x = reorder(author, -bookcode), y = n, fill = sentiment)) + 
+  geom_col(position = "dodge") + 
+  labs(y = "count to sentiment",
+       x = "")  + 
+  # theme(text=element_text(size=14))+
+  coord_flip()
+
+```
+
+
+## 比較每位作者的情緒 ratio
+```{r}
+bible_token %>% 
+  inner_join(LIWC) %>% 
+  group_by(author, sentiment) %>%
+  summarise(n = n(),
+            bookcode = min(bookcode)) %>%
+  mutate(ratio = n/sum(n)) %>% 
+  ungroup() %>% 
+  # select(author, bookcode, sentiment, ratio) %>% 
+  # pivot_wider(names_from = sentiment, values_from = ratio) 
+  
+  ggplot(aes(x = reorder(author, -bookcode), 
+             y = ratio, 
+             fill = sentiment,
+             group = sentiment
+             )
+         ) + 
+  geom_col(position = "stack") + 
+  geom_hline(yintercept = 0.5, color = "grey7") +
+  # facet_wrap(~sentiment, ncol = 1) + 
+  labs(y = "count to sentiment",
+       x = "")  + 
+  # theme(text=element_text(size=14))+
+  coord_flip()
+```
+
+## 查看每位作者次數最高的情緒字
+```{r}
+bible_token %>% 
+  inner_join(LIWC) %>% 
+  group_by(author, sentiment) %>% 
+  count(word) %>% 
+  top_n(1) %>% 
+  rmarkdown::paged_table()
+```
+
+## 哪些作者的部份最正面？
+
+`score` 使用作者的鄭負面詞彙總數相減
+```{r}
+bible_token %>% 
+  inner_join(LIWC) %>% 
+  group_by(author, sentiment) %>% 
+  summarise(n = n(), ch_book = max(ch_book)) %>% 
+  pivot_wider(names_from = sentiment, values_from = n) %>% 
+  ungroup() %>% 
+  mutate(score = positive - negative) %>% 
+  ggplot(aes(x = reorder(author, score), y = score)) + 
+  geom_col(aes(fill = reorder(author, score))) + 
+  geom_text(aes(label = ch_book), check_overlap = TRUE) +
+  scale_fill_discrete_diverging("Blue-Red2") + 
+  theme(legend.position = "none") +
+  coord_flip()
+```
+
+<style>
+  font-family: "Noto Sans CJK TC"
+<style>
